@@ -1,4 +1,5 @@
 import discord
+import random
 
 from configs.configs import Configs
 
@@ -10,6 +11,7 @@ canalOutputComandosID = Configs.CANAL_OUTPUT_COMANDOS_ID
 emojis = Configs.emojis
 letters = Configs.letters
 otherEmojis = Configs.otherEmojis
+colorEmojis = Configs.colorEmojis
 
 aUsed = False
 bUsed = False
@@ -52,9 +54,18 @@ def getEmojiForLetter(letterInput):
     return emojis[index]
 
 
+textToUse = ""
+emojiToUse = None
+pendingMessage = False
+userMessage = None
+botMessage = None
+
+
 # Evento de mensaje recibido
 @cliente.event
 async def on_message(message):
+    global emojiToUse
+    global textToUse
     global aUsed
     global bUsed
     global oUsed
@@ -63,27 +74,56 @@ async def on_message(message):
     bUsed = False
     oUsed = False
 
+    global pendingMessage
+    pendingMessage = True
+
     messageContent = message.content
+
+    # Si es mensaje del bot no contesto
+    if message.author == cliente.user:
+        return
 
     # Si no me invocan no respondo
     if not messageContent.startswith("!emoji "):
         return
 
-    mensajeCoso = messageContent.lower()
+    textToUse = messageContent.lower()[7:]
+    indexToUse = random.randint(0, 8)
 
-    messageToIterate = mensajeCoso[7:]
+    emojiToUse = colorEmojis[indexToUse]
 
-    for char_index in range(len(messageToIterate)):
-        char = messageToIterate[char_index]
-        emoji = getEmojiForLetter(char)
-        await message.add_reaction(emoji)
+    global userMessage
+    global botMessage
+
+    userMessage = message
+    botMessage = await message.channel.send(f"Please use this emoji: {emojiToUse} "
+                                            f"and react to the message where I should add your text.")
 
 
 # Evento de reaccion recibida
 @cliente.event
 async def on_reaction_add(reaction, user):
-    pass
+    global pendingMessage
 
+    # Si es mensaje del bot no contesto
+    if user == cliente.user or not pendingMessage or not reaction.emoji == emojiToUse:
+        print("No es mensaje para mi")
+        return
+
+    # Remuevo la reaccion generada por el usuario
+    await reaction.remove(user)
+
+    print("Procesando mensaje")
+
+    for char_index in range(len(textToUse)):
+        char = textToUse[char_index]
+        emoji = getEmojiForLetter(char)
+        await reaction.message.add_reaction(emoji)
+
+    await botMessage.delete()
+    await userMessage.delete()
+
+    pendingMessage = False
 
 # Corre el bot
 cliente.run(Configs.DISCORD_TOKEN)
